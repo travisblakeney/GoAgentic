@@ -1,0 +1,36 @@
+name: CI
+
+# Pin these actions to full commit SHAs in your internal mirror.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck scripts/*.sh tests/*.sh
+
+      - name: Audit
+        run: scripts/audit.sh
+
+      - name: Tests (default bash)
+        run: tests/run.sh
+
+      - name: Tests (macOS /bin/bash 3.2)
+        if: runner.os == 'macOS'
+        run: PATH="/bin:/usr/bin:/usr/sbin:/sbin" tests/run.sh

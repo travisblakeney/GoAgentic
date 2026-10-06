@@ -1,241 +1,105 @@
-# GoAgentic
+# GoAgentic (hardened, portable)
 
-A convention-based system for building persistent AI collaboration partners in [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Agents that challenge your thinking, drive the agenda, and hold you accountable — not task runners that wait for instructions.
+A convention-based system for building persistent AI collaboration partners: agents that challenge your thinking, drive the agenda, and hold you accountable. This edition is **markdown only** and works with any coding-agent CLI that reads skills: Claude Code, Cursor CLI, Codex, Gemini CLI, OpenCode, and Pi.
 
-## Why This Approach
+It is a hardened fork of [normannoble/GoAgentic](https://github.com/normannoble/GoAgentic), built to pass a corporate security review on a managed Mac. In short:
+
+- **Nothing to execute.** No binaries, no `curl | sh`, no hooks, no plugins fetched from a marketplace. The installer is one short, readable, offline bash script that copies markdown into a workspace.
+- **Nothing runs in the background.** The launchd/cron scheduler and unattended `--dangerously-skip-permissions` / `--yolo` / `--force` runs are gone. Every session is one you started.
+- **No publishing.** Agents commit locally; they never push, pull or fetch.
+- **Guardrails enforced by the CLI itself, not just the prompt.** Each harness gets a permission file that denies push, network tools, schedulers, approval bypass, and edits to the framework and to the permission files themselves.
+- **Tamper-evident.** `scripts/verify.sh` compares every installed file byte for byte against the reviewed checkout.
+
+[SECURITY.md](SECURITY.md) has the threat model, everything that was removed, and the remaining risks. That is the document to hand to a security team.
+
+## Why this approach
 
 Most AI agent setups build obedient assistants. You tell them what to do, they do it, they report back. That works for repeatable tasks with clear playbooks. It fails for the work that actually needs a collaborator — strategy, prioritisation, synthesis, judgment under ambiguity.
 
-This framework takes the opposite position. Agents are **drivers, not passengers.** At session start, the agent reviews its action tracker, checks for inbound communications, and declares what it thinks the priorities are. You agree, redirect, or override — but the agent sets the agenda. When conversation drifts from declared priorities, the agent notices and names it. Not rigidly, but consciously. Drift becomes a decision, not an accident.
+This framework takes the opposite position. Agents are **drivers, not passengers.** At session start, the agent reviews its action tracker and declares what it thinks the priorities are. You agree, redirect, or override — but the agent sets the agenda. When conversation drifts from declared priorities, the agent notices and names it. The autonomy model isn't about delegation; it's about **calibrating collaboration**. See [PHILOSOPHY.md](framework/workspace/PHILOSOPHY.md).
 
-The autonomy model isn't about delegation. It's about **calibrating collaboration.** An agent at L3 (Intend) doesn't just do more stuff unsupervised — it exercises more judgment independently. You do different work as autonomy rises: steering instead of deciding, correcting instead of approving. The collaboration gets richer, not thinner.
-
-See [PHILOSOPHY.md](PHILOSOPHY.md) for the full position.
-
-## Quick Start
-
-### Install as a plugin (recommended)
-
-Inside Claude Code:
-
-```
-/plugin marketplace add normannoble/GoAgentic
-/plugin install agents@normannoble
-```
-
-Or from the shell:
+## Quick start
 
 ```bash
-claude plugin marketplace add normannoble/GoAgentic
-claude plugin install agents@normannoble
+# 1. Get a copy of the framework and pin it to a reviewed tag
+git clone https://github.com/travisblakeney/GoAgentic.git ~/tools/goagentic
+cd ~/tools/goagentic && git checkout <reviewed-tag>
+scripts/audit.sh && tests/run.sh          # optional: re-run the checks yourself
+
+# 2. Install into a workspace, for the CLIs you use
+scripts/install.sh ~/work/my-agents --harness cursor,claude
+
+# 3. Review and commit what it wrote
+git -C ~/work/my-agents status
 ```
 
-This gives every project these skills:
-
-| Skill | What it does |
-|-------|--------------|
-| `/agents:help` | The guide: commands, the flow, what an agent is, common fixes |
-| `/agents:init` | Set up the current repo as a workspace (run once) |
-| `/agents:new` | Design and create an agent |
-| `/agents:start <name>` | Run an agent (`<name> <topic>` to work on something, `<name> close` to end) |
-| `/agents:wrap` | End the active session from inside it — save tracker, memory, and commit |
-| `/agents:close` | Same as `/agents:wrap`, then clears the conversation for a fresh start |
-| `/agents:list` | List agents (`<scope>` to filter, `all` to include retired) |
-| `/agents:status` | Live org status board |
-| `/agents:next` | The single next best action across the org |
-| `/agents:doctor` | Health review: startup cost, tracker and memory hygiene, staleness. Read-only, recommends the next commands |
-| `/agents:harness` | Show which CLI each agent runs under — peer sessions and ticks — and whether it is installed. Read-only |
-| `/agents:ask` | Ask another agent in the same workspace (Herdr only): fresh pane, peer session, written reply, pane closed |
-| `/agents:schedule` | Unattended tasks: `add`, `list`, `remove`, `enable`, `disable`, `status`, `install` the hourly launchd/cron timer. A gate script runs Claude only when a task is due |
-
-Then, in the repo where you want agents:
+Then open the workspace in your CLI:
 
 ```
-/agents:init
-/agents:new
-/agents:start <name>
+/agents-init            set up agents/CONVENTIONS.md (once)
+/agents-new             design your first agent
+/agents-start <name>    start a session with it
+/agents-wrap            end the session: tracker, memory, local commit
 ```
 
-`/agents:init` asks for your name and a naming tradition, then writes a short `agents/CONVENTIONS.md` that `extends: plugin`. The full conventions ship inside the plugin; the workspace file holds only your overrides and wins on conflict. Update the plugin later with:
+In Codex, type `$agents-<cmd>` instead of `/agents-<cmd>`.
 
-```bash
-claude plugin marketplace update normannoble && claude plugin update agents@normannoble
-```
+## What the installer writes
 
-### Add the dashboard (optional)
+`scripts/install.sh <workspace> --harness <list>`. `<list>` is any of `claude,cursor,codex,gemini,opencode,pi`.
 
-See what every agent wants to do next, and what is waiting on you, without starting any of them:
+| Path in the workspace | What it is | Managed? |
+|-----------------------|------------|----------|
+| `.agents/agents-framework/` | Master conventions, reference docs, templates, `VERSION`, `harnesses` | Yes: replaced on each install, read-only, verified |
+| `.agents/skills/agents-*/SKILL.md` | The 11 commands (read by Cursor, Codex, OpenCode, Gemini, Pi) | Yes |
+| `.claude/skills/agents-*/SKILL.md` | The same skills for Claude Code | Yes, if `claude` |
+| `.gemini/commands/`, `.opencode/commands/`, `.pi/prompts/` `agents-*` | One-line slash-command wrappers that point at the skill | Yes, for those harnesses |
+| `.claude/settings.json`, `.cursor/cli.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json` | Permission baselines | Written only if absent. An existing file is never overwritten; you're told to merge it |
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/normannoble/GoAgentic/main/install.sh | sh -s -- --dash
-```
+Everything is copied, never linked, and uses only relative paths. Changing the checkout changes nothing until you re-run the installer, and that shows up as a diff in the workspace for review. The installer never writes outside the workspace, never touches `$HOME`, and never uses the network. It refuses to write through symlinks. `--dry-run` shows what it would do; `--uninstall` removes the managed files and leaves your agents and permission files in place.
 
-This installs the `goagentic` CLI into `~/.local/bin` (prebuilt for macOS and Linux, no Go needed). If you use [Herdr](https://herdr.dev), it also installs a plugin and binds `prefix+a` to open the dashboard in any Space. Without Herdr, run `goagentic dash` from a workspace. Run the same line again to update. See [Dashboard](#dashboard).
+## How each CLI is held to the rules
 
-### Use it from Codex, Gemini CLI, OpenCode, Pi, or Cursor CLI
+| Harness | Enforcement | Strength |
+|---------|-------------|----------|
+| **Claude Code** | `.claude/settings.json`: deny rules, `disableBypassPermissionsMode`, `disableAutoMode`, and the OS sandbox (`sandbox.enabled`, `failIfUnavailable`, `allowUnsandboxedCommands: false`). The sandbox starts with no allowed network domains | Strong: the shell sandbox is enforced by the OS |
+| **Codex** | `.codex/config.toml`: `sandbox_mode = "workspace-write"`, `network_access = false`, `approval_policy = "on-request"`, `web_search = "disabled"`. **Loaded only after you trust the project** | Strong: the sandbox is enforced by the OS |
+| **Cursor CLI** | `.cursor/cli.json`: `Shell(...)`, `Write(...)`, `WebFetch(...)` deny rules (deny beats allow). Never run `cursor-agent` with `--force` or `--trust` | Medium: rules match commands |
+| **OpenCode** | `opencode.json`: `permission` rules, default `ask`, web tools `deny` | Medium: rules match commands |
+| **Gemini CLI** | `.gemini/settings.json` (`disableYoloMode`, web tools excluded), plus `framework/permissions/gemini/agents-framework.policy.toml`, which **you copy once to `~/.gemini/policies/`**, because Gemini ignores project-level policies today | Medium, once the user policy is installed |
+| **Pi** | None: Pi has no tool-approval gate | Only the model-side rules apply. Avoid where enforcement is required |
 
-The agents are markdown; only the command layer is harness-specific. From a clone of this repo:
+On every harness the master conventions also carry a binding **Security Boundaries** section that the model follows and no workspace file can loosen. Command-matching deny lists are best effort (a determined model can rephrase a command); the OS sandboxes are the hard boundary. See [SECURITY.md](SECURITY.md#residual-risks).
 
-```bash
-bash harness/install.sh codex    /path/to/workspace   # or gemini, opencode, pi, cursor
-bash harness/install.sh gemini   /path/to/workspace --user          # user-level commands for every repo
-bash harness/install.sh opencode /path/to/workspace --set-default   # ticks and peer panes use this CLI too
-```
+## Using it across projects
 
-It writes thin wrapper skills into `.agents/skills/agents-<cmd>/` (the Agent Skills folder they all read), native slash commands where the harness has them (`.gemini/commands/agents/*.toml`, `.opencode/commands/agents-*.md`, `.pi/prompts/agents-*.md`; Codex and Cursor use the skills directly), and the `## Agents` block in `AGENTS.md` or `GEMINI.md`. Each wrapper points at this checkout, so `git pull` updates every harness at once. Nothing under `.claude/` is touched; Claude Code keeps using the plugin.
+Pick one. They can be combined.
 
-| Harness | Start an agent | Any command |
-|---------|----------------|-------------|
-| Claude Code | `/agents:start <name>` | `/agents:<cmd>` |
-| Codex | `$agents-start <name>` | `$agents-<cmd>` |
-| Gemini CLI | `/agents:start <name>` | `/agents:<cmd>` |
-| OpenCode | `/agents-start <name>` | `/agents-<cmd>` |
-| Pi | `/agents-start <name>` | `/agents-<cmd>` |
-| Cursor CLI | `/agents-start <name>` | `/agents-<cmd>` |
+1. **One agents workspace (recommended).** Keep all agents, their memory, and your people notes in one dedicated repo (local only, or on an approved internal remote). Agents work on code repos that you list in their `tools.md`, each in its own git worktree. One install covers everything, and agent state never lands in company code repos. Cross-project use is built in, because the workspace *is* the cross-project layer.
+2. **Copy into each repo from one pinned checkout.** Run `scripts/install.sh <repo> --harness …` for each project that should have agents. Upgrades are a `git checkout <new-tag>` in the checkout plus re-running the installer per repo. Every change arrives as a reviewable diff, and `scripts/verify.sh <repo>` proves each copy is untouched.
+3. **Your company's internal distribution.** If your org has a Cursor team marketplace, an internal Claude Code plugin marketplace, or similar, publish `framework/` from an internal mirror of this repo. Security reviews one repo; admins control rollout. The permission baselines still go into each workspace (or into managed settings, which is stronger).
 
-`harness: <name>` in the workspace's `agents/CONVENTIONS.md` frontmatter picks which CLI the scheduler (`tick.sh`) and `/agents:ask` peer panes use: `claude -p`, `codex exec`, `gemini --approval-mode yolo`, `opencode run --auto`, `pi -p`, or `cursor-agent -p --force`. Default `claude`. Not ported: the gap-notice hook (Claude Code hooks only) and `${CLAUDE_SESSION_ID}` in session memories (each harness has its own resume command; see `template/agents/reference/session-end.md`).
+There is deliberately no "install globally into `~/.something`" mode: user-level skills apply to every repo you open, including ones where you don't want agents, and they are harder to audit.
 
-#### Choosing a model (OpenRouter and others)
+## Commands
 
-The framework never picks a model; each CLI uses its own default. To choose one, set `model:` in `agents/CONVENTIONS.md` frontmatter (every tick and peer pane) or in one agent's `context.md` (that agent's peer panes). It is passed to the CLI as `--model <value>`, so write it the way that CLI expects:
+| Command | What it does |
+|---------|--------------|
+| `/agents-help` | The guide |
+| `/agents-init` | Set up the current repo as a workspace (run once; safe to re-run) |
+| `/agents-new` | Design and create an agent, interactively |
+| `/agents-start <name> [topic]` | Run an agent (`<name> close` to end, `<name> peer <file>` to answer a peer request) |
+| `/agents-wrap` | End the session: tracker, memory, local commit |
+| `/agents-close` | Same as wrap, then asks you to clear the conversation |
+| `/agents-list` | List agents (`<scope>` to filter, `all` to include retired) |
+| `/agents-status` | Org status board |
+| `/agents-next` | The single next best action across the org |
+| `/agents-doctor` | Read-only health and security-posture review |
+| `/agents-ask <name> "<request>"` | Write a request for another agent. You start the target to answer it |
 
-```yaml
-harness: opencode
-model: openrouter/qwen/qwen3-coder   # opencode and pi: <provider>/<model id>
-```
+## How it works
 
-[OpenRouter](https://openrouter.ai) is a model provider, not a harness. Use it through OpenCode or Pi: set `OPENROUTER_API_KEY` and a `model: openrouter/<id>`. Cursor CLI runs only the models in Cursor's own list (`cursor-agent --list-models`); a free Cursor plan allows only `model: auto`.
-
-### Install by copying (the installer)
-
-If you would rather have every file inside your repo, with the same `/agents:*` commands:
-
-```bash
-curl -fsSL https://goagentic.sh/install.sh | sh
-```
-
-The installer downloads the release asset for your operating system and architecture, verifies its SHA-256 checksum, and opens an interactive terminal wizard. It collects the target repository, principal, naming tradition, and optional components, then shows the complete installation plan before writing anything. No Python or Go installation is required.
-
-### Run from a source checkout
-
-Developing the installer requires Go 1.25.8 or newer:
-
-```bash
-git clone https://github.com/normannoble/GoAgentic.git
-cd GoAgentic
-./setup.sh
-```
-
-`setup.sh` builds a temporary native binary from the checkout and runs the same wizard. It does not install anything globally.
-
-The CLI is written in Go and uses Charm's [Huh](https://github.com/charmbracelet/huh) forms with a project-owned Lip Gloss theme. Framework templates and skills are embedded in the release binary.
-
-### Public installer
-
-`install.sh` is the release bootstrap served by the project domain:
-
-```bash
-curl -fsSL https://goagentic.sh/install.sh | sh
-```
-
-The bootstrap detects macOS or Linux and ARM64 or AMD64, downloads the pinned binary from GitHub Releases, verifies the adjacent `.sha256` file, and runs `goagentic init`. The temporary binary is removed when setup exits.
-
-To test that exact release path locally from Nushell before publishing:
-
-```nu
-with-env {GO111MODULE: on} {
-  go build -o dist/goagentic ./cmd/goagentic
-}
-let target = (mktemp -d)
-git -C $target init -q
-$env.AGENT_FRAMEWORK_BINARY = (pwd | path join dist goagentic)
-./install.sh $target
-hide-env AGENT_FRAMEWORK_BINARY
-```
-
-### Releasing the CLI
-
-A merge does not update the CLI downloaded by `install.sh`. Publish a new release when the Go CLI, embedded framework templates, or embedded skills change. Documentation-only and website-only changes do not require a CLI release.
-
-First, choose the next version and update the fallback `VERSION` near the top of `install.sh`. The release tag must match it exactly; for example, `VERSION=${AGENT_FRAMEWORK_VERSION:-0.1.1}` requires the tag `v0.1.1`. Commit that version bump and get it merged into `main` before tagging.
-
-From an up-to-date `main` checkout, create and push the matching tag:
-
-```nu
-git switch main
-git pull --ff-only
-git tag v0.1.1
-git push origin v0.1.1
-```
-
-Pushing the tag starts `.github/workflows/release.yml`. The workflow verifies the version, runs the tests and shell checks, builds checksummed binaries for macOS and Linux on ARM64 and AMD64, smoke-tests the bootstrap, and publishes the GitHub Release.
-
-Watch the run and verify the published release with GitHub CLI:
-
-```nu
-let run_id = (gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run watch $run_id
-gh release view v0.1.1
-```
-
-Always increment the version for a new release. Do not move or reuse an existing release tag.
-
-### Automation and CI
-
-The same installer has a fully non-interactive interface:
-
-```bash
-curl -fsSL https://goagentic.sh/install.sh | sh -s -- ./my-repo \
-  --principal Fauzaan \
-  --naming roman \
-  --skills \
-  --workspace \
-  --no-claude \
-  --conflict fail \
-  --yes
-```
-
-Use `--dry-run` to preview without writing and add `--json` for machine-readable output. An unresolved inspection is returned with `plan.ready: false`; automation should check that field. `--yes` approves the final plan but never implies that customized files may be overwritten.
-
-## What Gets Installed
-
-The framework installs two layers of conventions and the runtime skills:
-
-### Workspace Layer
-
-- **`CONVENTIONS.md`** — Workspace structure: folder layout (thinking, work, knowledge, outputs, agents), INDEX.md patterns, knowledge system, deliverables vs. reports, lifecycle flows
-- **`PHILOSOPHY.md`** — The principles behind the framework
-- **Standard directories** — `thinking/`, `work/projects/`, `work/operations/`, `knowledge/` (with categories), `outputs/`, `agents/`
-
-### Agent Layer
-
-- **`agents/CONVENTIONS.md`** — The agent framework: structure, autonomy model, session lifecycle, tooling, playbooks. Organized into 4 parts:
-  1. **Agent Structure** — file reference, naming, directory layout
-  2. **Autonomy** — L1-L5 authority ladder, promotion/demotion, intent-based communication
-  3. **Session Lifecycle** — startup sequence, priority declaration, compass check, drift management, session end protocol
-  4. **Supporting Systems** — memory, skills, tooling (3-level architecture), INDEX.md maintenance, playbooks
-- **`agents/tools/INDEX.md`** — Shared tool index (credential types, status, references)
-
-### Runtime Skills
-
-- **`skills/start/SKILL.md`** — Router skill that activates agents (`/agents:start <name>`)
-- **`skills/wrap/SKILL.md`**, **`skills/close/SKILL.md`** — End the session (`/agents:wrap`, `/agents:close`); `close` also clears the conversation
-- **`skills/list/SKILL.md`**, **`skills/status/SKILL.md`**, **`skills/next/SKILL.md`** — Org views (`/agents:list`, `/agents:status`, `/agents:next`)
-- **`skills/help/SKILL.md`** — In-product guide (`/agents:help`)
-- **`skills/doctor/SKILL.md`** — Health review (`/agents:doctor`); thresholds mirror the master conventions
-- **`skills/harness/SKILL.md`** — Harness view (`/agents:harness`); which CLI each agent runs under, peer and ticks
-- **`skills/ask/SKILL.md`** — Peer request (`/agents:ask`); protocol in `template/agents/reference/peer.md`
-- **`skills/schedule/SKILL.md`** — Scheduled tasks (`/agents:schedule`); edits `agents/scheduled-tasks.md` and installs the timer from `template/agents/scheduler/`
-- **`skills/new/SKILL.md`** — Builder skill for interactive agent creation (`/agents:new`)
-- **`skills/init/SKILL.md`** — Workspace setup (`/agents:init`; marketplace plugin only — the installer does this job in copied mode)
-
-In plugin mode the skills come from the plugin and are namespaced (`/agents:help`, `/agents:start`, `/agents:wrap`, `/agents:close`, `/agents:list`, `/agents:status`, `/agents:next`, `/agents:doctor`, `/agents:harness`, `/agents:schedule`, `/agents:ask`, `/agents:new`, `/agents:init`). In copied mode the installer writes a small in-repo plugin at `.claude/skills/agents/` (manifest plus the `help`, `start`, `wrap`, `close`, `list`, `status`, `next`, `doctor`, `harness`, `schedule`, `ask`, and `new` skills). Claude Code loads it as `agents@skills-dir` once the folder is trusted, so the commands are the same. Browsing copies are synced to `agents/skills/`. Do not also install the marketplace plugin in that repo, or both will answer to the same names.
-
-The master conventions load a lean core at every agent start. Long procedures (session end, memory consolidation, tooling admin, playbook format, and so on) live in `template/agents/reference/` and are read only when needed.
-
-## How It Works
-
-### Agents Are Files
+### Agents are files
 
 Each agent is a directory of markdown files under `agents/`:
 
@@ -245,7 +109,7 @@ agents/<name>/
 ├── soul.md          How it communicates — voice, temperament, values
 ├── name.md          The historical figure behind the name and why it fits
 ├── autonomy.md      Authority levels — what it owns vs. what it flags
-├── tools.md         Agent-specific tool overrides (references agents/tools/)
+├── tools.md         Agent-specific tool notes (never credentials)
 ├── actions.md       Standing to-do list, updated every session
 ├── actions-archive.md  Completed actions older than 30 days
 ├── context.md       Startup file paths and project references
@@ -253,16 +117,17 @@ agents/<name>/
 ├── memory/
 │   ├── standing/    Durable rules, decisions, baselines (all loaded on startup)
 │   └── sessions/    Per-session logs (most recent 2 loaded on startup)
+├── peer/            Requests from other agents, and replies
 └── playbooks/       Repeatable procedures with defined execution modes
 ```
 
-No database, no API, no runtime. Just markdown in your git repo. Works with any workspace — personal wiki, knowledgebase, codebase, or multi-project monorepo. Compatible with Obsidian for browsing, linking, and tagging.
+No database, no API, no runtime. Just markdown in your git repo.
 
-### The Autonomy Model
+### The autonomy model
 
 Based on *Turn the Ship Around* by L. David Marquet. Agents operate on a five-level authority ladder:
 
-| Level | Agent Says | Meaning |
+| Level | Agent says | Meaning |
 |-------|-----------|---------|
 | **L5 — Own** | *(in summary)* | Acts independently, reports at close |
 | **L4 — Act & Inform** | "I've done X." | Acts, then flags |
@@ -270,259 +135,32 @@ Based on *Turn the Ship Around* by L. David Marquet. Agents operate on a five-le
 | **L2 — Recommend** | "I recommend..." | Presents analysis, waits for approval |
 | **L1 — Flag** | "I see a problem..." | Surfaces for you to decide |
 
-New agents start conservative (mostly L2). Authority moves up the ladder as trust is demonstrated — "good call, just do that next time" promotes an action type; "check with me first" demotes it. All changes are logged with dates and context.
+New agents start conservative (mostly L2). Authority moves up the ladder as trust is demonstrated. In this edition the ladder sits **inside** the Security Boundaries: no promotion lets an agent push, reach the network unasked, schedule work, or edit its own guardrails.
 
-The signature behaviour: agents default to **"I intend to..."** rather than **"What should I do?"** — keeping you in the loop without making you the bottleneck.
+### Sessions
 
-### Three-Level Tooling
+| Type | Who starts it | May write |
+|------|---------------|-----------|
+| **Session** | You, with `/agents-start <name>` | Memory, tracker, local commit |
+| **Peer** | You, with `/agents-start <name> peer <file>` after another agent ran `/agents-ask` | The reply section of one file in `peer/` |
 
-Tool configuration is split to avoid duplication and support multiple agents:
+The upstream "tick" session type (unattended scheduled runs) is removed. Work on a cadence becomes a playbook with a trigger, and the agent raises it the next time you start it.
 
-1. **`agents/tools/INDEX.md`** — shared index of all available tools (credential type, status, reference)
-2. **`agents/tools/<tool>.md`** — per-tool reference files (setup, commands, scope constraints, autonomy defaults)
-3. **`<agent>/tools.md`** — agent-specific overrides (identity, scoped commands)
+### Memory, playbooks, tooling
 
-Per-tool reference files are loaded on demand, not at startup. Agents read the shared index and their own overrides at startup; they consult the per-tool files when they need to use a specific tool.
+Unchanged from upstream apart from the security rules: standing and session memory with consolidation limits; playbooks with four execution modes (Autopilot, Maker-Checker, Exception-Based, Paired); three-level tool configuration (`agents/tools/INDEX.md` → `agents/tools/<tool>.md` → `<agent>/tools.md`). Tools run under your own logged-in CLI sessions, approved per call by the harness. Agents never get their own accounts or tokens.
 
-### Playbooks
-
-Agents codify repeatable procedures as playbooks — markdown files that capture the trigger, steps, tool commands, and execution mode for tasks they've done multiple times. Each playbook declares one of four execution modes:
-
-| Mode | Label | Human Involvement |
-|------|-------|----|
-| **P1** | **Autopilot** | Agent runs end-to-end, reports output |
-| **P2** | **Maker-Checker** | Agent pauses at review gates for approval |
-| **P3** | **Exception-Based** | Agent runs independently, escalates when stuck |
-| **P4** | **Paired** | Agent and human alternate contributions |
-
-Playbooks are lazy-loaded on startup (frontmatter only) and fully read only when triggered. The trigger check at startup flags any cadenced playbooks due this session.
-
-### Session Mechanics
-
-Every session follows a pattern:
-
-1. **Startup** — Agent loads conventions, soul, role, autonomy, shared tools, agent tools, action tracker, memories, and playbook index
-2. **Trigger check** — Agent evaluates playbook triggers against current context
-3. **Priority declaration** — Agent proposes up to 3 focus items (including triggered playbooks), checks inbound communications, gets your agreement
-4. **Work** — Compass checks make drift conscious rather than accidental
-5. **Close** — Agent reviews the session, updates tracker, saves memory, commits and pushes
-
-Session focus prevents recency bias — the agent won't silently let conversation momentum displace declared priorities.
-
-Startup is quiet: the agent batches its reads and says nothing until the load is done, then prints one block (pane label, any hygiene warning, the priority declaration).
-
-### Stale Sessions
-
-Leave a session open for two days and the agent still thinks it is two days ago. The plugin ships a hook that runs on every prompt and, when the idle gap passes a limit (`gap-notice:` in `agents/CONVENTIONS.md`, default `2h`, `off` to disable), tells the agent the current time and how long passed. The agent then states the gap and offers to wrap the old session first. Nothing runs while you are away, and nothing wraps without you.
-
-### Three Session Types
-
-| Type | Who starts it | Context | May write |
-|------|---------------|---------|-----------|
-| **Session** | You, with `/agents:start` | Full | Memory, tracker, commits |
-| **Tick** | The scheduler timer | Trimmed | `memory/scheduled/inbox.md` only |
-| **Peer** | Another agent, with `/agents:ask` | Trimmed plus the request file | The reply section of one file in `peer/` |
-
-Ticks and peer sessions never commit, never send anything, and stay at autonomy L3. A human session drains the inbox and glances at `peer/` at its next start.
-
-### Scheduler
-
-`/agents:init` copies `agents/scheduler/` and a task register `agents/scheduled-tasks.md` into the workspace. `/agents:schedule add` writes a task (agent, cron-style time, mode, instructions); `/agents:schedule install` starts an hourly launchd (macOS) or cron timer. Each hour `tick.sh` runs a gate that checks the register and starts Claude only when a task is due, so an idle hour costs nothing. Results land in the agent's inbox.
-
-### Herdr
-
-Inside [Herdr](https://herdr.dev) (`HERDR_ENV=1`) the agent names its pane and tab `<Name> - <Role>`, so the sidebar shows who is live. Scope is the repo root: `/agents:list`, `/agents:status`, and `/agents:doctor` show only live agents under the same root. `/agents:ask <name> "<request>"` opens a fresh pane, runs the target as a peer session, waits for its written reply in `agents/<Name>/peer/`, and closes the pane. Protocol: `template/agents/reference/peer.md`. Outside Herdr everything degrades to a no-op. For a live view of every agent in a Space, see [Dashboard](#dashboard).
-
-### Dashboard
-
-`goagentic dash` shows one workspace's agents without starting any of them. It reads only files, plus `herdr agent list` for live panes and Claude Code transcripts for "last started", and refreshes every 5 seconds. It changes nothing, except one line when you change an agent's harness (`c`).
+## Developing the framework
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/normannoble/GoAgentic/main/install.sh | sh -s -- --dash
+scripts/audit.sh     # static invariants: data-only framework, no network in the installer, baselines deny push
+tests/run.sh         # end-to-end installer tests in throwaway workspaces
 ```
 
-The installer puts `goagentic` in `~/.local/bin`. With Herdr, `goagentic herdr install` then adds the `goagentic.dash` plugin and binds `prefix+a`. That key opens the dashboard as a "GoAgentic Dashboard" tab at the left of the current Space's tab row, or takes over the current tab if it is an idle shell. Re-run the line to update. `goagentic herdr status` shows what is installed; `goagentic herdr uninstall` removes the plugin, its key and its files, backing up `config.toml` first.
-
-**What each row shows:** the agent's next item (its own `Next session:` line, else its top open P1), the harness it opens in, when it last ran, file health, and whether its Herdr pane is live. Its last session and where its harness is set are in the detail (`→`). The top line counts the Space's live agents, items waiting on you, overdue items, blocked P1s and health findings. Items waiting on you are also listed under it. Tracker statuses start with one of four states — `Not started`, `In progress`, `Waiting on <who>`, `Parked` — optionally followed by ` — note`; the dashboard keys on that state and falls back to reading free text in older trackers. An item counts as waiting on you when you are its only owner, or when its status is `Waiting on <you>` (older trackers: "awaiting Norman", "blocked on Norman"). A blocked P1 is one whose status says it waits on anyone else; `→` lists those under a red **Blocked items** heading above the open actions. In the open actions, each priority lists items under way first, then not started ("Not started", "Open", blank), then parked ones (held, deferred, dormant…) in grey.
-
-**Colours:** a dot before an agent's name says whether it needs you. Red means a problem: an overdue item, a blocked P1, or a health failure. Amber means something is waiting on you. Green means the agent is working. No dot means nothing to act on.
-
-**Keys:** `↑`/`↓` select an agent. `enter` opens it in its harness: it focuses the agent's pane if it is running, starts it in its old pane, or starts it in a new tab. It never starts a second copy. `c` changes the agent's harness without opening it: a menu lists all six, the current one filled in and the workspace default named; any whose CLI is not installed (on the PATH your login shell sets up) or whose framework commands the workspace lacks (`harness/install.sh <harness>`) shows why and cannot be picked. `enter` saves: it writes `harness:` into the agent's `context.md`, or removes the line when the pick is the workspace default, and drops the agent's own `model:` when the harness changes. A running agent keeps its CLI until its next start. The agent's next wrap commits the change. `→` shows full detail, `r` refreshes, `a` includes retired agents, `q` quits.
-
-**Fleet:** `goagentic dash --fleet` shows every workspace under `~/agents` (or `--root <dir>`) as one row: agents, live, for you, overdue, blocked P1s, health, and who needs you. `enter` opens that workspace's dashboard; `esc` comes back. In Herdr, `prefix+shift+a` opens it in its own tab. Symlinked workspace names are skipped, so a renamed workspace is listed once.
-
-**Scripts:** `--once` prints a snapshot (also with `--fleet`), `--json` the data, `--summary` one line. The Herdr plugin also writes each Space's summary to a `$agents` sidebar token. Plugin details: `integrations/herdr/README.md`.
-
-### Memory
-
-Two types:
-- **Standing** (durable) — baselines, decisions, stakeholder feedback. All loaded on startup.
-- **Sessions** (temporal) — per-session logs. Most recent 2 loaded on startup.
-
-Session memories reference `actions.md` instead of duplicating action items. When entries accumulate (>5 standing or >10 sessions, or a standing file over ~15 KB), the agent consolidates into a new baseline.
-
-A mature agent can know more than one startup page holds. Rules it needs only in some sessions, and the exact detail behind them (IDs, recipes, incident playbooks), go in the agent's own **`reference/`** folder, read on demand. The baseline keeps the short rule with a pointer (`Full detail: reference §2`), and `MEMORY.md` lists each reference file with a **Read when** trigger, so the agent knows when to open it.
-
-### Workspace Structure
-
-The framework installs a standard workspace layout:
-
-```
-your-repo/
-├── CONVENTIONS.md          # Workspace structure conventions
-├── PHILOSOPHY.md           # Framework principles
-├── thinking/               # Unstructured capture — ideas, notes, backlog
-├── work/
-│   ├── projects/           # Time-bounded initiatives
-│   └── operations/         # Ongoing responsibilities
-├── knowledge/
-│   ├── systems/            # Platform architecture, technical concepts
-│   ├── people/             # People you work with
-│   ├── processes/          # Operational processes and standards
-│   ├── company/            # Org structure, strategy, context
-│   └── MOC.md              # Map of Content — conceptual relationships
-├── outputs/                # Audience-facing artifacts
-├── agents/
-│   ├── CONVENTIONS.md      # Agent framework conventions
-│   ├── tools/              # Shared tool configuration
-│   │   ├── INDEX.md        # Tool index (credential types, status)
-│   │   └── <tool>.md       # Per-tool reference files
-│   ├── skills/             # Browsing copies of .claude/skills/
-│   └── <name>/             # One directory per agent
-│       ├── role.md
-│       ├── soul.md
-│       ├── name.md
-│       ├── autonomy.md
-│       ├── tools.md
-│       ├── actions.md
-│       ├── actions-archive.md
-│       ├── context.md
-│       ├── MEMORY.md
-│       ├── memory/
-│       │   ├── standing/
-│       │   └── sessions/
-│       └── playbooks/
-└── .claude/
-    └── skills/
-        └── agents/         # Copied mode only: an in-repo plugin (agents@skills-dir)
-            ├── .claude-plugin/plugin.json
-            └── skills/
-                ├── help/SKILL.md
-                ├── start/SKILL.md
-                ├── wrap/SKILL.md
-                ├── close/SKILL.md
-                ├── list/SKILL.md
-                ├── status/SKILL.md
-                ├── next/SKILL.md
-                ├── doctor/SKILL.md
-                ├── harness/SKILL.md
-                ├── schedule/SKILL.md
-                ├── ask/SKILL.md
-                └── new/SKILL.md
-```
-
-Lifecycle flows connect the areas: thinking → work (when ideas become active), thinking → knowledge (when notes crystallize), work → knowledge (when insights emerge), work → outputs (when artifacts are produced).
-
-## Setup Details
-
-### Prerequisites
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- A git repository where you want agents — personal wiki, knowledgebase, codebase, anything
-
-### What the Setup Script Does
-
-1. **Collects setup choices interactively** — arrow-key menus for the target, principal, naming convention, skills, workspace directories, and `CLAUDE.md` integration
-2. **Preflights the complete change set** — identifies additions, managed updates, unchanged files, and customized conflicts without writing anything
-3. **Reviews conflicts safely** — keep, replace, or inspect a diff; existing files are kept by default
-4. **Shows the final plan** — every file and directory is listed before confirmation
-5. **Applies safely** — uses atomic per-file replacements and rolls back caught failures while installing philosophy, conventions, shared tools, skills, workspace directories, and the optional managed `CLAUDE.md` block
-6. **Records managed state** — `.agent-framework/install.json` makes identical reruns true no-ops and enables safe future updates
-
-### Creating Your First Agent
-
-In your target repository:
-
-```
-/agents:new
-```
-
-This walks you through 7 phases: scope, role definition, autonomy levels, soul/personality, naming, file creation, and verification. No files are created until phase 6 — the first five phases are pure design conversation.
-
-## Releasing the plugin
-
-Plugin users get a new version only when `version` in `.claude-plugin/plugin.json` changes. From a clean checkout:
-
-```bash
-./release.sh          # patch bump, validate, commit, push, update your local install
-./release.sh minor    # or major, or an exact version like 1.4.0
-```
-
-Then restart Claude Code. The Go installer has its own release flow (below); a plugin release does not publish a binary.
-
-## Developing the framework without the plugin (symlinks)
-
-To see edits instantly without a release, symlink the checkout itself into your user skills folder. The repo root already has the plugin layout, so it loads as `agents@skills-dir` with the same `/agents:*` commands:
-
-```bash
-ln -s /path/to/GoAgentic ~/.claude/skills/agents
-```
-
-Uninstall the marketplace copy first (`claude plugin uninstall agents@normannoble`), or both will answer to the same names.
-
-In each workspace, set `extends:` in `agents/CONVENTIONS.md` to the absolute path of `template/agents/CONVENTIONS.md` instead of `plugin`.
-
-## Customisation
-
-### Tool Permissions
-
-The `/agents:start` skill includes tool permissions in its frontmatter:
-
-```yaml
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(date), Bash(ls), AskUserQuestion
-```
-
-Edit `skills/start/SKILL.md` (or the copied `.claude/skills/agents/skills/start/SKILL.md`) to match your toolchain. If your agents need database access, API calls, or CLI tools, add the relevant permissions here.
-
-### Adding Tools
-
-The three-level tooling architecture makes it easy to add new tools:
-
-1. Create `agents/tools/<tool>.md` with setup, commands, and autonomy defaults
-2. Add a row to `agents/tools/INDEX.md`
-3. Add the tool to each agent's `tools.md` with agent-specific config
-4. Update each agent's `autonomy.md` with the tooling actions
-
-### Workspace Layout
-
-The framework auto-detects two layouts:
-- **Single-domain** (`agents/<name>/`) — one project per repo (most common)
-- **Multi-domain** (`agents/<scope>/<name>/`) — multiple projects per repo
-
-No configuration needed. The router globs for both patterns and uses whichever matches.
-
-### Custom Naming Pool
-
-Edit the **Naming** section of `agents/CONVENTIONS.md` to use any naming convention. The only requirements are:
-- Names should not signal the agent's domain
-- The pool should be deep enough to scale (20+ names)
-- Each name should carry an archetype — a historical or mythological figure that gives the agent identity beyond its role
-
-### Obsidian Integration
-
-The workspace is fully compatible with Obsidian:
-- System files use UPPERCASE names for visual distinction
-- INDEX.md files use `type: index` frontmatter for Dataview exclusion
-- Wiki-links (`[[entry-name]]`) connect knowledge entries
-- Skills are synced to `agents/skills/` for vault browsing
-- MOC.md provides a conceptual relationship map
+CI runs both on Linux and on macOS's `/bin/bash` 3.2, plus `shellcheck`. Bump `framework/VERSION` and tag a release for every change to `framework/`.
 
 ## Background
 
-The autonomy model is inspired by *Turn the Ship Around* by L. David Marquet — specifically the idea that people (and agents) perform better when they state intent and drive execution rather than waiting for instructions. The five-level authority ladder gives you granular control over how much independence each agent has, with a built-in mechanism for that independence to grow (or shrink) based on demonstrated judgment.
+The session mechanics — priority declaration, compass checks, drift management — exist because AI agents have a strong recency bias. Without explicit structure, conversation momentum displaces strategic priorities. The memory system is designed around the constraint that CLI sessions don't share context: standing memories give agents institutional knowledge, session logs give them continuity, and consolidation rules prevent context bloat.
 
-The session mechanics — priority declaration, compass checks, drift management — exist because AI agents have a strong recency bias. Without explicit structure, conversation momentum displaces strategic priorities. These mechanics make drift conscious rather than accidental.
-
-The memory system is designed around the constraint that Claude Code sessions don't share context. Standing memories give agents institutional knowledge; session logs give them continuity. The consolidation rules prevent context bloat while preserving what matters.
-
-The two-tier conventions — workspace structure and agent framework — separate concerns cleanly. Workspace conventions govern how the workspace is organized; agent conventions govern how agents behave. Both evolve independently.
+License: see [LICENSE](LICENSE).
