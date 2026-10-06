@@ -43,7 +43,7 @@ done
 [[ ! -w "$W/.agents/agents-framework/agents/CONVENTIONS.md" ]] && ok "managed files are read-only" || nok "managed files are writable"
 grep -q 'Read `.agents/skills/agents-start/SKILL.md`' "$W/.gemini/commands/agents-start.toml" && ok "wrappers point inside the workspace" || nok "wrapper path"
 if grep -rqE '(/home/|/Users/|'"$ROOT"')' "$W/.agents" "$W/.gemini" "$W/.opencode" "$W/.pi" "$W/.claude/skills"; then nok "installed files contain absolute paths"; else ok "installed files contain no absolute paths"; fi
-[[ "$(cat "$W/.agents/agents-framework/harnesses" | tr '\n' ' ')" == "claude codex cursor gemini opencode pi " ]] && ok "harness list remembered" || nok "harness list: $(cat "$W/.agents/agents-framework/harnesses")"
+[[ "$(tr '\n' ' ' < "$W/.agents/agents-framework/harnesses")" == "claude codex cursor gemini opencode pi " ]] && ok "harness list remembered" || nok "harness list: $(cat "$W/.agents/agents-framework/harnesses")"
 
 # --- verify
 expect_ok "verify passes after install (pi warning only)" "$VERIFY" "$W"
