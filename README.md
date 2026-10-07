@@ -20,18 +20,33 @@ This framework takes the opposite position. Agents are **drivers, not passengers
 
 ## Quick start
 
-```bash
-# 1. Get a copy of the framework and pin it to a reviewed tag
-git clone https://github.com/travisblakeney/GoAgentic.git ~/tools/goagentic
-cd ~/tools/goagentic && git checkout <reviewed-tag>
-scripts/audit.sh && tests/run.sh          # optional: re-run the checks yourself
+1. Get a copy of the framework, pin it to a reviewed tag, and optionally re-run the checks yourself:
 
-# 2. Install into a workspace, for the CLIs you use
-scripts/install.sh ~/work/my-agents --harness cursor,claude
+   ```bash
+   git clone https://github.com/travisblakeney/GoAgentic.git ~/tools/goagentic
+   cd ~/tools/goagentic && git checkout <reviewed-tag>
+   scripts/audit.sh && tests/run.sh
+   ```
 
-# 3. Review and commit what it wrote
-git -C ~/work/my-agents status
-```
+2. Install into a workspace, for the CLIs you use. The workspace must sit outside the checkout, and should be a git repo so you can review and commit changes:
+
+   ```bash
+   mkdir -p ~/work/my-agents && git -C ~/work/my-agents init
+   scripts/install.sh ~/work/my-agents --harness cursor,claude
+   scripts/verify.sh ~/work/my-agents
+   ```
+
+3. Review and commit what it wrote:
+
+   ```bash
+   git -C ~/work/my-agents status
+   git -C ~/work/my-agents add -A && git -C ~/work/my-agents commit -m "Install agents framework"
+   ```
+
+> **macOS notes**
+>
+> - **zsh and pasted comments.** By default zsh does not treat `#` as a comment in commands you type or paste. A trailing `# note` becomes extra arguments, and the installer fails with `only one workspace may be given`. Paste commands without comments, or run `setopt interactivecomments` first (add it to `~/.zshrc` to keep it).
+> - **Commit signing.** If your global git config sets `commit.gpgsign = true` but no key, every commit fails with `either user.signingkey or gpg.ssh.defaultKeyCommand needs to be configured`. That includes the agent's commits in `/agents-wrap`, and the agent cannot fix it, because writes to `.git/` are denied. Fix it in the workspace before you start a session, either by naming your key (`git -C <workspace> config user.signingkey ~/.ssh/<key>.pub`) or, if your organisation allows unsigned commits there, with `git -C <workspace> config commit.gpgsign false`. Your global config stays as it is. A CLI's sandbox may block access to your SSH agent, so signed commits can still fail from inside a session. If they do, set `commit: off` in `agents/CONVENTIONS.md` and make the commits yourself.
 
 Then open the workspace in your CLI:
 
