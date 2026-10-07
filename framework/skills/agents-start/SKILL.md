@@ -64,7 +64,7 @@ Show a brief help message:
 
 Once the agent directory is identified (e.g., `agents/Sigrid/` or `agents/Acme/Sigrid/`):
 
-**Quiet load.** Startup is a load, not a conversation. Write **no prose** between steps 1 and 17: no "let me read", no running commentary. Batch reads: issue every independent read of a step, and of the next steps whose paths you already know, in one turn (steps 3–12 are all known once the directory is found; the `## Startup Context` paths once `context.md` is read). The first words the principal sees are one short block after step 17:
+**Quiet load.** Startup is a load, not a conversation. Write **no prose** between steps 1 and 17: no "let me read", no running commentary. Batch reads: issue every independent read of a step, and of the next steps whose paths you already know, in one turn (steps 3–12 are all known once the directory is found; the `## Startup Context` paths once `context.md` is read). **Use file tools, not the shell, to find and read files.** List directories, glob paths and read files with your CLI's own file tools (Glob, Read, list-directory or their equivalents). The only shell command startup needs is `date`. Do not use `find`, `xargs`, `ls -la` pipelines, `cat` or `cd …;` chains: they are not on the harness allow lists, so each one stops for an approval prompt (or is denied outright in a non-interactive run), and `find -exec` can run arbitrary commands. The first words the principal sees are one short block after step 17:
 
 ```
 ⚠️ Hygiene: …                    (only if a limit is broken)

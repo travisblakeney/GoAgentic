@@ -301,7 +301,7 @@ The agent files, this document, and the reference files are the same on every ha
 
 ## Startup Sequence
 
-Standard order after the agent directory is identified:
+Standard order after the agent directory is identified. Discover and read files with the CLI's file tools (glob, read, list directory), not shell commands such as `find`, `xargs` or `cat`. The only shell command startup needs is `date` (§ Security Boundaries; the harness allow lists cover nothing else at startup).
 
 1. Run `date` to establish current date, time, and day of week
 2. Read `agents/CONVENTIONS.md`. If its frontmatter has `extends: <path>`, read that master file **first**, then the workspace file; the workspace file wins on conflict (see § Inheritance)

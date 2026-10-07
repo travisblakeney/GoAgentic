@@ -1,1 +1,1 @@
-1.0.0-hardened
+1.0.1-hardened
