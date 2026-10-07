@@ -1,0 +1,10 @@
+# Agents framework: hardened Codex settings for this project.
+# Codex reads a project .codex/config.toml only after you trust the project.
+# The sandbox is enforced by the OS (Seatbelt on macOS): commands can write only
+# inside the workspace and have no network, so push/fetch/curl fail even if tried.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "disabled"
+
+[sandbox_workspace_write]
+network_access = false

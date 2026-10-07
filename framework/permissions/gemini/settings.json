@@ -1,0 +1,8 @@
+{
+  "security": {
+    "disableYoloMode": true
+  },
+  "tools": {
+    "exclude": ["web_fetch", "google_web_search"]
+  }
+}

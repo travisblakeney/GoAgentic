@@ -1,0 +1,30 @@
+# Agents framework: Gemini CLI policy rules.
+# Gemini ignores project-level policies (.gemini/policies) today, so this file must be
+# installed at user level by you, once:   cp <this file> ~/.gemini/policies/
+# It then applies to every project. Review it like any security config.
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ["git push", "git pull", "git fetch", "git remote", "git clone", "git submodule"]
+decision = "deny"
+priority = 900
+denyMessage = "Agents framework: publishing and network git commands are the principal's job."
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ["gh", "curl", "wget", "ssh", "scp", "rsync", "nc", "npx", "uvx", "pipx", "brew", "sudo"]
+decision = "deny"
+priority = 900
+denyMessage = "Agents framework: network, installs and privilege escalation are denied."
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ["launchctl", "crontab", "osascript", "security", "claude", "codex", "cursor-agent", "gemini", "opencode", "pi", "herdr"]
+decision = "deny"
+priority = 900
+denyMessage = "Agents framework: no schedulers, keychain access, or driving other agent CLIs."
+
+[[rule]]
+toolName = ["web_fetch", "google_web_search"]
+decision = "deny"
+priority = 900
